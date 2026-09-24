@@ -12,6 +12,11 @@ from compatibility import compatible
 LOSS = 0
 TIE = 1
 WIN = 2
+INCOMPATIBLE = "I"
+
+# Every unordered two-card hand, in stable deck-bit order.  The same ordering
+# is used for comparison vectors and for both axes of comparison matrices.
+PRIVATE_HANDS = tuple(first | second for first, second in combinations(cards_in(FULL_DECK), 2))
 
 
 def _validate_cards(value: int, expected_count: int, name: str) -> None:
@@ -85,7 +90,7 @@ def best_hand_rank(cards: int) -> tuple[int, ...]:
     )
 
 
-def compare_private_hands(first: int, second: int, river: int) -> int:
+def compare_hands(first: int, second: int, board: int) -> int:
     """Compare two private hands on a complete five-card river board.
 
     The result is from ``first``'s perspective: ``LOSS`` (0), ``TIE`` (1), or
@@ -93,17 +98,84 @@ def compare_private_hands(first: int, second: int, river: int) -> int:
     """
     _validate_cards(first, 2, "first")
     _validate_cards(second, 2, "second")
-    _validate_cards(river, 5, "river")
+    _validate_cards(board, 5, "board")
 
     if not compatible(first, second):
         raise ValueError("The private hands overlap")
-    if not compatible(first, river) or not compatible(second, river):
-        raise ValueError("A private hand overlaps the river board")
+    if not compatible(first, board) or not compatible(second, board):
+        raise ValueError("A private hand overlaps the board")
 
-    first_rank = best_hand_rank(first | river)
-    second_rank = best_hand_rank(second | river)
+    first_rank = best_hand_rank(first | board)
+    second_rank = best_hand_rank(second | board)
     if first_rank < second_rank:
         return LOSS
     if first_rank == second_rank:
         return TIE
     return WIN
+
+
+def _ranks_for_board(board: int) -> dict[int, tuple[int, ...]]:
+    """Precompute the showdown rank of every private hand valid on ``board``."""
+    return {
+        hand: best_hand_rank(hand | board)
+        for hand in PRIVATE_HANDS
+        if not hand & board
+    }
+
+
+def comparison_vector(first: int, board: int) -> list[int | str]:
+    """Compare ``first`` with every possible private hand on ``board``.
+
+    Entries follow :data:`PRIVATE_HANDS`.  A result is ``LOSS`` (0), ``TIE``
+    (1), or ``WIN`` (2) from ``first``'s perspective.  ``INCOMPATIBLE``
+    (``"I"``) is used when a private hand overlaps ``first`` or the board.
+    """
+    _validate_cards(first, 2, "first")
+    _validate_cards(board, 5, "board")
+
+    if first & board:
+        return [INCOMPATIBLE] * len(PRIVATE_HANDS)
+
+    ranks = _ranks_for_board(board)
+    first_rank = ranks[first]
+    result: list[int | str] = []
+    for second in PRIVATE_HANDS:
+        if second not in ranks or first & second:
+            result.append(INCOMPATIBLE)
+        else:
+            second_rank = ranks[second]
+            result.append(LOSS if first_rank < second_rank else TIE if first_rank == second_rank else WIN)
+    return result
+
+
+def comparison_matrix(board: int) -> list[list[int | str]]:
+    """Return all private-hand comparisons for a complete river ``board``.
+
+    Rows and columns both follow :data:`PRIVATE_HANDS`; cell ``[row][column]``
+    is from the row hand's perspective.  Any overlap with the board or between
+    the two hands produces ``INCOMPATIBLE`` (``"I"``).
+    """
+    _validate_cards(board, 5, "board")
+    ranks = _ranks_for_board(board)
+    matrix: list[list[int | str]] = []
+
+    for first in PRIVATE_HANDS:
+        if first not in ranks:
+            matrix.append([INCOMPATIBLE] * len(PRIVATE_HANDS))
+            continue
+
+        first_rank = ranks[first]
+        row: list[int | str] = []
+        for second in PRIVATE_HANDS:
+            if second not in ranks or first & second:
+                row.append(INCOMPATIBLE)
+            else:
+                second_rank = ranks[second]
+                row.append(LOSS if first_rank < second_rank else TIE if first_rank == second_rank else WIN)
+        matrix.append(row)
+
+    return matrix
+
+
+# Backwards-compatible name retained for existing callers.
+compare_private_hands = compare_hands

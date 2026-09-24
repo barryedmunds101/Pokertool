@@ -18,6 +18,7 @@ def test_card_round_trip() -> None:
     assert parse_card("As") == card("A", "s") == 1 << 51
     assert card_name(parse_card("As")) == "As"
     assert parse_card("2c") == 1
+    assert parse_card("10c") == parse_card("Tc")
 
 
 def test_hand_representation() -> None:

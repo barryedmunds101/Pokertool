@@ -42,18 +42,35 @@ The comparison result is from the first hand's perspective: `0` means a loss,
 
 ```python
 from cards import make_hand
-from showdown import compare_private_hands
+from showdown import compare_hands
 
 first = make_hand(["Jc", "Ad"])
 second = make_hand(["9c", "Kd"])
 river = make_hand(["2c", "7d", "9h", "Js", "3c"])
 
-result = compare_private_hands(first, second, river)
+result = compare_hands(first, second, river)
 print(result)  # 2: the first hand wins
 ```
 
 Overlapping private or board cards raise `ValueError` instead of producing an
 invalid result.
+
+## Compare against every private hand
+
+Comparison vectors and matrices use the stable 1,326-hand ordering in
+`PRIVATE_HANDS`. A matrix uses that ordering for both its rows and columns.
+`"I"` marks hands that overlap each other or the board.
+
+```python
+from cards import make_hand
+from showdown import PRIVATE_HANDS, comparison_matrix, comparison_vector
+
+board = make_hand(["2c", "7d", "9h", "Js", "3c"])
+first = make_hand(["10c", "Ad"])
+
+vector = comparison_vector(first, board)
+matrix = comparison_matrix(board)
+```
 
 ## Tests
 

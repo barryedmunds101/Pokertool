@@ -26,8 +26,10 @@ def card(rank: str, suit: str) -> int:
 
 
 def parse_card(value: str) -> int:
-    """Convert two-character notation (for example ``'As'``) to a card bit."""
+    """Convert card notation (for example ``'As'`` or ``'10c'``) to a card bit."""
     value = value.strip()
+    if len(value) == 3 and value[:2] == "10":
+        value = "T" + value[2]
     if len(value) != 2:
         raise ValueError(f"Card must contain a rank and suit: {value!r}")
     return card(value[0], value[1])

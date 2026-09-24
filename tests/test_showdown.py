@@ -1,7 +1,18 @@
 import pytest
 
 from cards import make_hand
-from showdown import LOSS, TIE, WIN, best_hand_rank, compare_private_hands
+from showdown import (
+    INCOMPATIBLE,
+    LOSS,
+    PRIVATE_HANDS,
+    TIE,
+    WIN,
+    best_hand_rank,
+    compare_hands,
+    compare_private_hands,
+    comparison_matrix,
+    comparison_vector,
+)
 
 
 def hand(*names: str) -> int:
@@ -11,6 +22,44 @@ def hand(*names: str) -> int:
 def test_first_hand_wins_with_higher_pair() -> None:
     board = hand("2c", "7d", "9h", "Js", "3c")
     assert compare_private_hands(hand("Jc", "Ad"), hand("9c", "Kd"), board) == WIN
+
+
+def test_compare_hands_is_the_public_comparison_function() -> None:
+    board = hand("2c", "7d", "9h", "Js", "3c")
+    assert compare_hands(hand("Jc", "Ad"), hand("9c", "Kd"), board) == WIN
+    assert compare_private_hands is compare_hands
+
+
+def test_ten_can_be_written_as_10() -> None:
+    board = hand("2c", "7d", "9h", "Js", "3c")
+    assert compare_hands(hand("10c", "Ad"), hand("9c", "Kd"), board) == LOSS
+
+
+def test_comparison_vector_uses_all_private_hands_in_stable_order() -> None:
+    board = hand("2c", "7d", "9h", "Js", "3c")
+    first = hand("10c", "Ad")
+    vector = comparison_vector(first, board)
+
+    assert len(PRIVATE_HANDS) == 1326
+    assert len(vector) == len(PRIVATE_HANDS)
+    assert vector[PRIVATE_HANDS.index(hand("9c", "Kd"))] == LOSS
+    assert vector[PRIVATE_HANDS.index(hand("10c", "Kd"))] == INCOMPATIBLE
+    assert vector[PRIVATE_HANDS.index(hand("2c", "Kd"))] == INCOMPATIBLE
+
+
+def test_comparison_matrix_has_matching_axes_and_perspectives() -> None:
+    board = hand("2c", "7d", "9h", "Js", "3c")
+    matrix = comparison_matrix(board)
+    first_index = PRIVATE_HANDS.index(hand("10c", "Ad"))
+    second_index = PRIVATE_HANDS.index(hand("9c", "Kd"))
+    board_overlap_index = PRIVATE_HANDS.index(hand("2c", "Kh"))
+
+    assert len(matrix) == len(PRIVATE_HANDS)
+    assert all(len(row) == len(PRIVATE_HANDS) for row in matrix)
+    assert matrix[first_index][second_index] == LOSS
+    assert matrix[second_index][first_index] == WIN
+    assert matrix[first_index][first_index] == INCOMPATIBLE
+    assert all(value == INCOMPATIBLE for value in matrix[board_overlap_index])
 
 
 def test_first_hand_loses_to_flush() -> None:
@@ -39,7 +88,7 @@ def test_overlapping_cards_are_rejected() -> None:
     board = hand("2c", "7d", "9h", "Js", "3c")
     with pytest.raises(ValueError, match="private hands overlap"):
         compare_private_hands(hand("Ac", "Kd"), hand("Ac", "Qd"), board)
-    with pytest.raises(ValueError, match="river board"):
+    with pytest.raises(ValueError, match="board"):
         compare_private_hands(hand("2c", "Kd"), hand("Ac", "Qd"), board)
 
 
