@@ -1,6 +1,7 @@
 import numpy as np
 
 from cards import make_hand, parse_card
+from hand_space import compatible_hand_indices
 from river_kernel import river_kernel
 from symmetry import (
     HAND_PERMUTATIONS,
@@ -63,3 +64,17 @@ def test_river_kernel_is_equivariant_under_suit_permutations() -> None:
     coordinates = np.ix_(indices, indices)
     assert np.array_equal(moved_compatibility[coordinates], compatibility)
     assert np.array_equal(moved_dominance[coordinates], dominance)
+
+
+def test_monotone_board_kernel_commutes_with_its_stabilizer() -> None:
+    board = make_hand(["2c", "5c", "8c", "Jc", "Ac"])
+    compatibility, dominance = river_kernel(board)
+    compatible = set(compatible_hand_indices(board))
+    assert len(compatible) == 1081
+
+    for permutation in stabilizer(board):
+        indices = hand_permutation(permutation)
+        coordinates = np.ix_(indices, indices)
+        assert {int(indices[index]) for index in compatible} == compatible
+        assert np.array_equal(compatibility[coordinates], compatibility)
+        assert np.array_equal(dominance[coordinates], dominance)
