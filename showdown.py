@@ -7,17 +7,13 @@ from itertools import combinations
 
 from cards import FULL_DECK, cards_in
 from compatibility import compatible
+from hand_space import PRIVATE_HANDS
 
 
 LOSS = 0
 TIE = 1
 WIN = 2
 INCOMPATIBLE = "I"
-
-# Every unordered two-card hand, in stable deck-bit order.  The same ordering
-# is used for comparison vectors and for both axes of comparison matrices.
-PRIVATE_HANDS = tuple(first | second for first, second in combinations(cards_in(FULL_DECK), 2))
-
 
 def _validate_cards(value: int, expected_count: int, name: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):

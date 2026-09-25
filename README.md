@@ -15,9 +15,13 @@ compatible = first_cards & second_cards == 0
 - `cards.py` creates cards, hands, and shuffled decks.
 - `poker.py` deals private hands and Texas Hold'em boards.
 - `compatibility.py` finds remaining cards and compatible private hands.
+- `hand_space.py` defines the fixed 1,326-coordinate private-hand basis.
 - `showdown.py` compares two private hands on a completed river board.
+- `river_kernel.py` builds numeric compatibility and dominance operators.
+- `symmetry.py` implements the 24 suit permutations, orbits, and stabilizers.
 - `tests/` contains the automated pytest suite.
-- `experiments/` is reserved for exploratory notebooks.
+- `experiments/` contains exploratory notebooks, including a guided river
+  kernel and suit-symmetry experiment.
 
 ## Example
 
@@ -83,3 +87,22 @@ python -m pytest
 
 The notebooks in `tests/` remain as interactive demonstrations. The `.py`
 tests are the authoritative automated test suite.
+
+## River chance operators
+
+For a five-card board, `river_kernel` returns two NumPy arrays on the fixed
+1,326-hand ambient basis. `C` is boolean compatibility and `D` is signed
+dominance. Invalid entries are zero, `C` is symmetric, and `D` is
+skew-symmetric. The doubled-equity result matrix is `R = C + D`.
+
+```python
+from cards import make_hand
+from river_kernel import river_kernel
+
+board = make_hand(["2c", "7d", "9h", "Js", "3c"])
+C, D = river_kernel(board)
+```
+
+Suit permutations transport kernels equivariantly between boards. The
+symmetry module derives the 169 private-hand suit classes and counts the
+134,459 five-card board classes with Burnside's lemma.
