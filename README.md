@@ -18,6 +18,9 @@ compatible = first_cards & second_cards == 0
 - `hand_space.py` defines the fixed 1,326-coordinate private-hand basis.
 - `showdown.py` compares two private hands on a completed river board.
 - `river_kernel.py` builds numeric compatibility and dominance operators.
+- `turn.py` enumerates labelled river outcomes from a turn.
+- `flop.py` recursively aggregates turn results from a flop.
+- `preflop.py` recursively aggregates labelled flop summaries.
 - `symmetry.py` implements the 24 suit permutations, orbits, and stabilizers.
 - `tests/` contains the automated pytest suite.
 - `experiments/` contains exploratory notebooks, including a guided river

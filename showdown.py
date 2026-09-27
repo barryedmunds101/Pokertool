@@ -15,6 +15,7 @@ TIE = 1
 WIN = 2
 INCOMPATIBLE = "I"
 
+
 def _validate_cards(value: int, expected_count: int, name: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an integer card bitset")
