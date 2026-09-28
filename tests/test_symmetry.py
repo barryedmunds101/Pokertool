@@ -8,6 +8,7 @@ from symmetry import (
     SUIT_PERMUTATIONS,
     board_orbit_count,
     canonical_board,
+    canonical_board_transport,
     compose,
     hand_permutation,
     inverse,
@@ -51,6 +52,14 @@ def test_canonical_board_and_monotone_stabilizer() -> None:
     canonical = canonical_board(board)
     assert all(canonical <= permute_cards(board, g) for g in SUIT_PERMUTATIONS)
     assert all(canonical_board(permute_cards(board, g)) == canonical for g in SUIT_PERMUTATIONS)
+
+
+def test_canonical_board_transport_maps_to_representative() -> None:
+    board = make_hand(["2s", "7h", "9d", "Jc"])
+    canonical, transport = canonical_board_transport(board)
+
+    assert canonical == canonical_board(board)
+    assert permute_cards(board, transport) == canonical
 
 
 def test_river_kernel_is_equivariant_under_suit_permutations() -> None:

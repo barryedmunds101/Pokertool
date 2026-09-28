@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
-from itertools import combinations
 from typing import Iterator
 
-from cards import FULL_DECK, cards_in, hand_names
+from cards import hand_names
+from chance import ChanceState, canonical_chance_children, chance_children
 from flop import FlopResult, flop_outcomes
 from showdown import INCOMPATIBLE, _validate_cards
 
@@ -64,9 +64,9 @@ def flop_children(first: int, second: int) -> Iterator[int]:
     _validate_cards(second, 2, "second")
     if first & second:
         return
-    available = cards_in(FULL_DECK ^ (first | second))
-    for flop_cards in combinations(available, 3):
-        yield flop_cards[0] | flop_cards[1] | flop_cards[2]
+    yield from (
+        child.reveal for child in chance_children(ChanceState(first=first, second=second))
+    )
 
 
 def preflop_flop_outcomes(first: int, second: int) -> Iterator[FlopOutcome]:
@@ -79,19 +79,33 @@ def preflop_flop_outcomes(first: int, second: int) -> Iterator[FlopOutcome]:
     _validate_cards(second, 2, "second")
     if first & second:
         return
-    for flop in flop_children(first, second):
-        result = flop_outcomes(flop, first, second)
-        if result == INCOMPATIBLE:  # Protected by flop_children.
-            raise RuntimeError("compatible preflop deal produced an incompatible flop")
-        yield FlopOutcome.from_result(result)
+    state = ChanceState(first=first, second=second)
+    groups = canonical_chance_children(state)
+    group_for_reveal = {
+        member.child.reveal: group
+        for group in groups
+        for member in group.members
+    }
+    summaries: dict[int, FlopOutcome] = {}
+    for child in chance_children(state):
+        group = group_for_reveal[child.reveal]
+        representative_flop = group.representative.reveal
+        if representative_flop not in summaries:
+            result = flop_outcomes(representative_flop, first, second)
+            if result == INCOMPATIBLE:  # Protected by chance_children.
+                raise RuntimeError("compatible preflop deal produced an incompatible flop")
+            summaries[representative_flop] = FlopOutcome.from_result(result)
+        summary = summaries[representative_flop]
+        yield FlopOutcome(child.reveal, summary.wins, summary.losses, summary.ties)
 
 
 def preflop_outcomes(first: int, second: int) -> PreflopResult | str:
     """Recursively aggregate the complete exact preflop chance tree.
 
-    The calculation visits 17,296 flops and 34,246,080 ordered turn-river
-    runouts.  Use :func:`preflop_flop_outcomes` when incremental consumption is
-    preferable to waiting for and retaining the complete result.
+    The result represents all 17,296 flops and 34,246,080 ordered turn-river
+    runouts. Suit-isomorphic children share calculations under each conditioned
+    state's stabilizer. Use :func:`preflop_flop_outcomes` when incremental
+    consumption is preferable to waiting for and retaining the complete result.
     """
     _validate_cards(first, 2, "first")
     _validate_cards(second, 2, "second")

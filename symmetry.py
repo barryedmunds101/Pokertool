@@ -76,6 +76,28 @@ def canonical_board(board: int) -> int:
     return min(permute_cards(board, g) for g in SUIT_PERMUTATIONS)
 
 
+def canonical_card_sets(*card_sets: int) -> tuple[tuple[int, ...], SuitPermutation]:
+    """Return canonical card sets and a permutation transporting them there.
+
+    The order of ``card_sets`` is significant.  This lets callers canonicalize
+    a board together with ordered private hands or street reveals without
+    losing the coordinate transport used to reach the representative.
+    """
+    for index, cards in enumerate(card_sets):
+        _validate_card_set(cards, f"card_sets[{index}]")
+    candidates = tuple(
+        (tuple(permute_cards(cards, g) for cards in card_sets), g)
+        for g in SUIT_PERMUTATIONS
+    )
+    return min(candidates, key=lambda item: (item[0], item[1]))
+
+
+def canonical_board_transport(board: int) -> tuple[int, SuitPermutation]:
+    """Return a board's canonical representative and transport permutation."""
+    canonical, permutation = canonical_card_sets(board)
+    return canonical[0], permutation
+
+
 def stabilizer(board: int) -> tuple[SuitPermutation, ...]:
     """Return suit permutations that leave ``board`` unchanged."""
     _validate_card_set(board, "board")

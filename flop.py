@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from cards import FULL_DECK, card_name, cards_in
+from chance import ChanceState, canonical_chance_children
 from showdown import INCOMPATIBLE, _validate_cards
-from turn import TurnResult, turn_outcomes
+from symmetry import inverse
+from turn import TurnResult, permute_turn_result, turn_outcomes
 
 
 @dataclass(frozen=True)
@@ -61,7 +63,8 @@ def flop_outcomes(flop: int, first: int, second: int) -> FlopResult | str:
     """Aggregate every turn recursively through :func:`turn_outcomes`.
 
     There are 45 labelled turn children and 44 rivers below each child, so a
-    compatible deal contains 1,980 ordered turn-river runouts.
+    compatible deal contains 1,980 ordered turn-river runouts.  Every label is
+    retained, while descendant calculations are shared by stabilizer orbit.
     """
     _validate_cards(flop, 3, "flop")
     _validate_cards(first, 2, "first")
@@ -70,13 +73,21 @@ def flop_outcomes(flop: int, first: int, second: int) -> FlopResult | str:
         return INCOMPATIBLE
 
     turns: list[TurnOutcome] = []
-    for turn_card, turn_board in turn_children(flop, first | second):
-        result = turn_outcomes(turn_board, first, second)
+    state = ChanceState(flop, first, second)
+    for group in canonical_chance_children(state):
+        representative = group.representative.state
+        result = turn_outcomes(
+            representative.board,
+            representative.first,
+            representative.second,
+        )
         if result == INCOMPATIBLE:  # Protected by the compatibility check.
             raise RuntimeError("compatible flop produced an incompatible turn")
-        turns.append(TurnOutcome(turn_card, result))
+        for member in group.members:
+            transported = permute_turn_result(result, inverse(member.permutation))
+            turns.append(TurnOutcome(member.child.reveal, transported))
 
-    children = tuple(turns)
+    children = tuple(sorted(turns, key=lambda child: child.turn_card))
     return FlopResult(
         flop,
         first,

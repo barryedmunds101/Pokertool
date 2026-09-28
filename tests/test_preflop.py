@@ -2,6 +2,7 @@ from fractions import Fraction
 
 import preflop
 from cards import make_hand
+from chance import ChanceState, canonical_chance_children
 from flop import FlopResult
 from showdown import INCOMPATIBLE
 
@@ -29,11 +30,12 @@ def test_preflop_aggregates_flop_results_recursively(monkeypatch) -> None:
         flops[0]: FlopResult(flops[0], FIRST, SECOND, (), 10, 20, 2),
         flops[1]: FlopResult(flops[1], FIRST, SECOND, (), 7, 3, 1),
     }
-    monkeypatch.setattr(preflop, "flop_children", lambda first, second: iter(flops))
     monkeypatch.setattr(
         preflop,
-        "flop_outcomes",
-        lambda flop, first, second: results[flop],
+        "preflop_flop_outcomes",
+        lambda first, second: (
+            preflop.FlopOutcome.from_result(results[flop]) for flop in flops
+        ),
     )
 
     result = preflop.preflop_outcomes(FIRST, SECOND)
@@ -48,3 +50,23 @@ def test_preflop_aggregates_flop_results_recursively(monkeypatch) -> None:
 def test_overlapping_preflop_hands_are_incompatible() -> None:
     assert preflop.preflop_outcomes(FIRST, hand("Ah", "Qs")) == INCOMPATIBLE
     assert list(preflop.flop_children(FIRST, hand("Ah", "Qs"))) == []
+
+
+def test_preflop_keeps_all_flops_while_calculating_one_per_suit_orbit(
+    monkeypatch,
+) -> None:
+    first = hand("Ac", "Ad")
+    second = hand("Kc", "Kd")
+    canonical_count = len(canonical_chance_children(ChanceState(first=first, second=second)))
+    calls = []
+
+    def fake_flop_outcomes(flop, first_hand, second_hand):
+        calls.append(flop)
+        return FlopResult(flop, first_hand, second_hand, (), 1, 0, 0)
+
+    monkeypatch.setattr(preflop, "flop_outcomes", fake_flop_outcomes)
+    summaries = tuple(preflop.preflop_flop_outcomes(first, second))
+
+    assert len(summaries) == 17296
+    assert len({summary.flop for summary in summaries}) == 17296
+    assert len(calls) == canonical_count < len(summaries)

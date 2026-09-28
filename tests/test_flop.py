@@ -1,9 +1,12 @@
 from fractions import Fraction
 
+import flop as flop_module
 from cards import make_hand
+from chance import ChanceState, canonical_chance_children, chance_children
 from flop import flop_outcomes, turn_children
 from showdown import INCOMPATIBLE
 from symmetry import permute_cards
+from turn import TurnResult
 
 
 def hand(*names: str) -> int:
@@ -59,3 +62,26 @@ def test_flop_hand_swap_and_suit_invariance() -> None:
 def test_incompatible_flop_returns_marker() -> None:
     assert flop_outcomes(FLOP, hand("Ah", "2h"), SECOND) == INCOMPATIBLE
     assert flop_outcomes(FLOP, FIRST, hand("Ah", "Qs")) == INCOMPATIBLE
+
+
+def test_flop_keeps_all_turns_while_calculating_one_per_suit_orbit(monkeypatch) -> None:
+    flop = hand("2h", "3h", "4h")
+    first = hand("Ac", "Ad")
+    second = hand("Kc", "Kd")
+    state = ChanceState(flop, first, second)
+    raw = chance_children(state)
+    canonical = canonical_chance_children(state)
+    calls = []
+
+    def fake_turn_outcomes(turn, first_hand, second_hand):
+        calls.append(turn)
+        return TurnResult(turn, first_hand, second_hand, (), 1, 0, 0)
+
+    monkeypatch.setattr(flop_module, "turn_outcomes", fake_turn_outcomes)
+    result = flop_module.flop_outcomes(flop, first, second)
+
+    assert len(result.turns) == len(raw) == 45
+    assert {child.turn_card for child in result.turns} == {
+        child.reveal for child in raw
+    }
+    assert len(calls) == len(canonical) < len(raw)

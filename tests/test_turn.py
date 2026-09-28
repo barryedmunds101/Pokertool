@@ -1,9 +1,15 @@
 from fractions import Fraction
 
 from cards import make_hand
+from chance import ChanceState, canonical_chance_children, chance_children
 from showdown import INCOMPATIBLE, LOSS, TIE, WIN
 from symmetry import permute_cards
-from turn import river_children, turn_outcomes
+from turn import (
+    clear_showdown_cache,
+    river_children,
+    showdown_cache_info,
+    turn_outcomes,
+)
 
 
 def hand(*names: str) -> int:
@@ -68,3 +74,21 @@ def test_suit_permutation_preserves_outcome_counts() -> None:
 def test_overlapping_cards_are_incompatible() -> None:
     assert turn_outcomes(TURN, hand("Ah", "2h"), SECOND) == INCOMPATIBLE
     assert turn_outcomes(TURN, FIRST, hand("Ah", "Qs")) == INCOMPATIBLE
+
+
+def test_turn_keeps_all_children_while_reusing_suit_orbits() -> None:
+    turn = hand("2h", "3h", "2s", "3s")
+    first = hand("Ac", "Ad")
+    second = hand("Kc", "Kd")
+    state = ChanceState(turn, first, second)
+    raw = chance_children(state)
+    canonical = canonical_chance_children(state)
+
+    clear_showdown_cache()
+    result = turn_outcomes(turn, first, second)
+    cache = showdown_cache_info()
+
+    assert len(raw) == len(result.rivers) == 44
+    assert {child.reveal for child in raw} == {item.river for item in result.rivers}
+    assert len(canonical) == cache.misses == 22
+    assert cache.misses < result.total
