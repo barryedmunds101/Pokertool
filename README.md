@@ -25,6 +25,10 @@ compatible = first_cards & second_cards == 0
   representative per conditioned suit orbit.
 - `chance.py` generates one street of exact chance children and canonical
   stabilizer orbits without evaluating descendants.
+- `mass.py` represents exact private-hand ranges, compatible joint beliefs,
+  weighted showdown signatures and chance-conditioned belief updates.
+- `river_game.py` defines a complete one-bet heads-up river game, information
+  sets, terminal chip utilities and exact strategy evaluation.
 - `symmetry.py` implements the 24 suit permutations, orbits, and stabilizers.
 - `tests/` contains the automated pytest suite.
 - `experiments/` contains exploratory notebooks, including a guided river
@@ -178,3 +182,95 @@ result = turn_outcomes(turn, first, second)
 assert len(result.rivers) == 44       # every river remains available
 print(showdown_cache_info())          # canonical calculations are reused
 ```
+
+## Exact range and belief mass
+
+`RangeMass` stores a non-negative integer or rational weight at every position
+of the fixed 1,326-hand basis. Weights remain unnormalised until probabilities
+are requested.
+
+```python
+from cards import make_hand
+from mass import RangeMass
+
+first_range = RangeMass.from_hands({
+    make_hand(["Jc", "Ad"]): 2,
+    make_hand(["4d", "5d"]): 1,
+})
+assert first_range.total == 3
+```
+
+For two marginal ranges `x` and `y`, `compatible_joint_mass` constructs the
+sparse exact product model
+
+```text
+M_B(i, j) = x_i C_B(i, j) y_j.
+```
+
+Blocked hand pairs receive zero mass. `JointMass` is also public so correlated
+beliefs that cannot be factored into two marginal ranges can be represented
+directly. Call `to_dense()` only when the full 1,326 × 1,326 object matrix is
+actually needed.
+
+On a river, `weighted_signature` returns exact weighted wins, losses and ties.
+`range_equity` agrees with the existing compatibility and dominance operators:
+
+```text
+Equity_B(x, y) = xᵀ(C_B + D_B)y / (2 xᵀC_By).
+```
+
+`turn_mass` begins with compatible pair mass on a turn and distributes every
+pair equally over its 44 legal rivers. It returns all 48 public river labels,
+including zero-probability rivers when the current beliefs block a card. Each
+positive-probability child contains:
+
+- its exact probability;
+- its share of the parent joint mass;
+- normalized conditional pair beliefs;
+- exact weighted win, loss and tie mass;
+- exact conditional equity.
+
+The child masses sum exactly to the parent mass, and probability-weighted river
+equity equals the aggregate turn equity.
+
+Range weights need not respect suit symmetry. `transport_range` moves a range
+through the ambient hand permutation and `range_is_invariant` tests whether a
+particular suit permutation preserves it. Orbit multiplicities may be applied
+to weighted calculations only when the relevant range or joint mass has the
+required symmetry.
+
+## Small river extensive-form game
+
+`river_game.py` connects cards and showdowns to a complete betting tree. The
+first player may check or bet. After a check, the second player may check or
+bet; after a bet, the other player may fold or call. Raises are deliberately
+excluded from this first game.
+
+```python
+from cards import make_hand
+from river_game import BET, CALL, CHECK, FOLD, apply_action, new_river_game
+
+board = make_hand(["2c", "7d", "9h", "Js", "3c"])
+first = make_hand(["Jc", "Ad"])
+second = make_hand(["9c", "Kd"])
+
+root = new_river_game(board, first, second, pot=2, bet_size=1)
+after_bet = apply_action(root, BET)
+showdown = apply_action(after_bet, CALL)
+assert showdown.terminal
+```
+
+The game terminal condition is separate from `ChanceState.terminal`: a river
+has no further public-card children, but betting may still be active.
+
+`information_set_key(state)` contains the acting player's own hand, public
+board, public action history, stacks, contributions, pot and bet size. It never
+contains the opponent's private hand. Consequently, underlying deals that look
+identical to a player share the same information-set key.
+
+`evaluate_strategies` accepts two behavioural policies and weighted or uniform
+private-hand ranges. It removes incompatible deals, renormalizes their exact
+`Fraction` probabilities and reports per-deal utilities and aggregate EV for
+both players. Utilities measure chip gain from the beginning of the river spot;
+because the starting pot is already present, the game is constant-sum rather
+than zero-sum.
