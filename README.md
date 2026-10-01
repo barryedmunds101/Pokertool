@@ -25,8 +25,9 @@ compatible = first_cards & second_cards == 0
   representative per conditioned suit orbit.
 - `chance.py` generates one street of exact chance children and canonical
   stabilizer orbits without evaluating descendants.
-- `mass.py` represents exact private-hand ranges, compatible joint beliefs,
-  weighted showdown signatures and chance-conditioned belief updates.
+- `mass.py` represents exact private-hand ranges and joint mass, propagates
+  mass through chance children, and provides weighted showdown signatures
+  and optional conditional beliefs.
 - `river_game.py` defines a complete one-bet heads-up river game, information
   sets, terminal chip utilities and exact strategy evaluation.
 - `symmetry.py` implements the 24 suit permutations, orbits, and stabilizers.
@@ -238,6 +239,61 @@ through the ambient hand permutation and `range_is_invariant` tests whether a
 particular suit permutation preserves it. Orbit multiplicities may be applied
 to weighted calculations only when the relevant range or joint mass has the
 required symmetry.
+
+## Propagate joint mass without a belief or betting model
+
+`propagate_joint_mass(state, joint_mass)` yields one street of
+`JointMassChild` objects. Each contains `reveal`, the next `ChanceState`, and
+its unnormalised `joint_mass`. Inputs may be arbitrary correlated joint mass;
+there is no requirement to factor them into two ranges.
+
+```python
+from fractions import Fraction
+from cards import make_hand
+from chance import ChanceState
+from hand_space import HAND_INDEX
+from mass import JointEntry, JointMass, propagate_joint_mass
+
+turn = make_hand(["2c", "7d", "9h", "Js"])
+first = make_hand(["Jc", "Ad"])
+second = make_hand(["9c", "Kd"])
+parent = JointMass((JointEntry(HAND_INDEX[first], HAND_INDEX[second], 44),))
+
+children = tuple(propagate_joint_mass(ChanceState(turn), parent))
+assert len(children) == 48
+assert sum(child.joint_mass.total > 0 for child in children) == 44
+assert sum((child.joint_mass.total for child in children), Fraction()) == 44
+# Each available river carries one unit; the four held cards carry zero.
+```
+
+The split uses each pair's legal reveals, rather than the public state's
+unweighted reveal probability: a pair splits over 17,296 unordered flops,
+45 turns, or 44 rivers. All child labels from `chance_children(state)` remain
+present, including those carrying zero mass. Optional fixed hands in the
+state restrict labels and must match every positive-mass input pair.
+Incompatible input deals raise `ValueError` on iteration instead of silently
+losing mass. Empty mass produces empty mass at each child. A river yields no
+children; its mass remains at that terminal state.
+
+At every nonterminal state, adding child masses recovers the parent **at each
+private-hand-pair coordinate**. The operation is linear, uses exact
+`Fraction` arithmetic, and preserves recorded reveal and action histories.
+It performs no normalization, showdown evaluation, or descendant expansion.
+Existing `turn_mass` now uses this operator before adding river probabilities
+and W/L/T results, so its public interface and results remain the same.
+
+On a flop, pass a yielded child's `state` and `joint_mass` into
+`propagate_joint_mass` again to continue to the river. Branch probabilities
+can be derived as `child.joint_mass.total / parent.total` when the parent has
+positive mass. Call `child.joint_mass.normalized()` only when conditional
+beliefs are needed and the child has positive mass.
+
+The iterator constructs one child mass at a time; retaining all children or
+using dense supports can still be expensive. Start with a few pairs. The
+worked notebook [joint_mass_flow.ipynb](experiments/joint_mass_flow.ipynb)
+demonstrates correlated input, blockers, coordinate-wise conservation and
+repeated propagation. Suit-canonical grouping must also preserve or transport
+the mass weights; board symmetry alone does not justify weighted grouping.
 
 ## Small river extensive-form game
 

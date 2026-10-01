@@ -1,14 +1,15 @@
-"""Exact private-range and joint-belief mass on the ambient hand space."""
+"""Exact private-range, joint mass and chance propagation on the hand space."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Iterable, Mapping
+from typing import Iterable, Iterator, Mapping
 
 import numpy as np
 
-from cards import FULL_DECK, card_name, cards_in
+from cards import card_name
+from chance import ChanceState, chance_child_count, chance_children
 from compatibility import _validate_card_set
 from hand_space import HAND_INDEX, PRIVATE_HANDS
 from showdown import LOSS, TIE, WIN, _validate_cards, compare_hands
@@ -144,6 +145,15 @@ class JointMass:
 
 
 @dataclass(frozen=True)
+class JointMassChild:
+    """One labelled chance child carrying its unnormalised joint mass."""
+
+    reveal: int
+    state: ChanceState
+    joint_mass: JointMass
+
+
+@dataclass(frozen=True)
 class WeightedSignature:
     wins: Fraction
     losses: Fraction
@@ -231,6 +241,70 @@ def compatible_joint_mass(board: int, first: RangeMass, second: RangeMass) -> Jo
     return JointMass(tuple(entries))
 
 
+def propagate_joint_mass(
+    state: ChanceState, joint_mass: JointMass
+) -> Iterator[JointMassChild]:
+    """Distribute arbitrary exact joint mass over one street of chance children.
+
+    Each compatible private-hand pair splits equally across its legal reveals:
+    17,296 flops preflop, 45 turns on a flop, or 44 rivers on a turn. All labels
+    from ``chance_children(state)`` are retained, including zero-mass children.
+    The state's unconditioned child probabilities must not be used to split
+    a pair's mass: the pair supplies both players' blockers.
+
+    For every nonterminal input, summing children recovers the parent weight
+    at every hand-pair coordinate. No normalization, showdown evaluation or
+    recursive expansion is performed. Child masses are yielded one at a time;
+    dense input supports can still be expensive. Empty mass is supported, and
+    a river yields no children (its mass remains terminal).
+
+    On iteration, reject positive-mass deals incompatible with the board or
+    fixed hands in ``state`` rather than silently discarding their mass.
+    """
+    deals: list[tuple[JointEntry, int]] = []
+    for entry in joint_mass.entries:
+        first = PRIVATE_HANDS[entry.first_index]
+        second = PRIVATE_HANDS[entry.second_index]
+        if first & second or (first | second) & state.board:
+            raise ValueError("joint mass contains a deal incompatible with the board")
+        if (state.first and first != state.first) or (
+            state.second and second != state.second
+        ):
+            raise ValueError("joint mass does not match the state's fixed hands")
+        deals.append((entry, first | second))
+
+    if state.terminal:
+        return
+
+    # Every legal pair contains exactly four private cards. One representative
+    # supplies the shared conditional count through the existing chance layer.
+    if deals:
+        entry = deals[0][0]
+        pair_state = ChanceState(
+            state.board,
+            PRIVATE_HANDS[entry.first_index],
+            PRIVATE_HANDS[entry.second_index],
+            state.reveals,
+            state.action_history,
+        )
+        probability = Fraction(1, chance_child_count(pair_state))
+        shares = tuple(
+            (
+                JointEntry(item.first_index, item.second_index, item.weight * probability),
+                blocked,
+            )
+            for item, blocked in deals
+        )
+    else:
+        shares = ()
+
+    for child in chance_children(state):
+        mass = JointMass(
+            tuple(entry for entry, blocked in shares if not blocked & child.reveal)
+        )
+        yield JointMassChild(child.reveal, child.state, mass)
+
+
 def weighted_signature(board: int, joint_mass: JointMass) -> WeightedSignature:
     """Calculate exact weighted W/L/T on a complete river board."""
     _validate_cards(board, 5, "board")
@@ -265,26 +339,16 @@ def turn_mass(turn: int, first: RangeMass, second: RangeMass) -> TurnMass:
     """
     _validate_cards(turn, 4, "turn")
     parent = compatible_joint_mass(turn, first, second)
-    if not parent.total:
+    parent_total = parent.total
+    if not parent_total:
         raise ValueError("the ranges have no compatible mass on this turn")
 
     rivers: list[RiverMass] = []
-    for river in cards_in(FULL_DECK ^ turn):
-        entries = tuple(
-            JointEntry(entry.first_index, entry.second_index, entry.weight / 44)
-            for entry in parent.entries
-            if not (PRIVATE_HANDS[entry.first_index] | PRIVATE_HANDS[entry.second_index])
-            & river
-        )
-        child_mass = JointMass(entries)
-        probability = child_mass.total / parent.total
-        board = turn | river
-        signature = (
-            weighted_signature(board, child_mass)
-            if child_mass.total
-            else WeightedSignature(Fraction(), Fraction(), Fraction())
-        )
-        rivers.append(RiverMass(river, probability, child_mass, signature))
+    for child in propagate_joint_mass(ChanceState(turn), parent):
+        child_mass = child.joint_mass
+        probability = child_mass.total / parent_total
+        signature = weighted_signature(child.state.board, child_mass)
+        rivers.append(RiverMass(child.reveal, probability, child_mass, signature))
     return TurnMass(turn, parent, tuple(rivers))
 
 
