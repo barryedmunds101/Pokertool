@@ -155,6 +155,15 @@ def state_stabilizer(state: ChanceState) -> tuple[SuitPermutation, ...]:
     )
 
 
+def chance_child_count(state: ChanceState) -> int:
+    """Count next legal reveals without constructing any child states."""
+    if state.terminal:
+        return 0
+    available_count = (FULL_DECK ^ (state.board | state.blocked)).bit_count()
+    reveal_count = 3 if state.street == "preflop" else 1
+    return comb(available_count, reveal_count)
+
+
 def chance_children(state: ChanceState) -> tuple[ChanceChild, ...]:
     """Return only the next legal chance states, never their descendants."""
     if state.terminal:
@@ -167,7 +176,7 @@ def chance_children(state: ChanceState) -> tuple[ChanceChild, ...]:
         if reveal_count == 3
         else iter(available)
     )
-    child_count = comb(len(available), reveal_count)
+    child_count = chance_child_count(state)
     probability = Fraction(1, child_count)
     children: list[ChanceChild] = []
     for reveal in reveals:
