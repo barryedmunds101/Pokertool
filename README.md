@@ -29,12 +29,41 @@ compatible = first_cards & second_cards == 0
   weighted showdown signatures and chance-conditioned belief updates.
 - `river_game.py` defines a complete one-bet heads-up river game, information
   sets, terminal chip utilities and exact strategy evaluation.
+- `exact_zero_sum.py` solves small matrix-game LPs using exact rational pivots.
+- `river_equilibrium.py` compiles small river games, solves them, independently
+  certifies every legal deviation, and explains information-set decisions.
 - `symmetry.py` implements the 24 suit permutations, orbits, and stabilizers.
 - `tests/` contains the automated pytest suite.
 - `experiments/` contains exploratory notebooks, including a guided river
   kernel and suit-symmetry experiment.
 
 ## Example
+
+### First exact river equilibrium
+
+Run these commands from the repository root in your Python environment:
+
+```powershell
+python -m experiments.river_equilibrium
+python -m experiments.river_equilibrium --verify examples/polar_river_certificate.json
+```
+
+The benchmark uses a one-blind pot, a one-blind bet and actual Hold'em cards.
+Player 0 has either a value hand or a bluff; player 1 has one bluff catcher.
+The existing complete one-bet tree includes betting after a check. The exact
+centered value is `1/4` blind, and both players' best-response gains are zero.
+The output shows action probabilities, continuation values, betting-conditioned
+opponent beliefs and off-path decisions.
+
+The checker rebuilds the spot and tests all complete deterministic
+information-set deviations through the original game evaluator. It does not
+run the LP solver or rely on its tableau. Read the
+[implementation guide](docs/river_equilibrium.md) and
+[complete example output](docs/polar_river_report.md).
+
+This is a deliberately small normal-form reference, with explicit size limits.
+It searches LP bases through rational simplex pivots, never a probability grid.
+Larger games need sequence form or iterative methods.
 
 ```python
 from cards import hand_names, make_hand

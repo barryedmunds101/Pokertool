@@ -1,0 +1,133 @@
+{
+  "schema": "pokertool.river-equilibrium.v1",
+  "spot": {
+    "board": [
+      "2c",
+      "3c",
+      "7d",
+      "9h",
+      "Js"
+    ],
+    "pot": 1,
+    "stacks": [
+      10,
+      10
+    ],
+    "bet_size": 1,
+    "first_player": 0,
+    "deals": [
+      {
+        "first": [
+          "Jc",
+          "Ad"
+        ],
+        "second": [
+          "9c",
+          "Kd"
+        ],
+        "mass": "1/2"
+      },
+      {
+        "first": [
+          "4d",
+          "5d"
+        ],
+        "second": [
+          "9c",
+          "Kd"
+        ],
+        "mass": "1/2"
+      }
+    ]
+  },
+  "strategies": [
+    [
+      {
+        "own_hand": [
+          "4d",
+          "5d"
+        ],
+        "history": [],
+        "probabilities": {
+          "check": "1/2",
+          "bet": "1/2"
+        }
+      },
+      {
+        "own_hand": [
+          "Jc",
+          "Ad"
+        ],
+        "history": [],
+        "probabilities": {
+          "check": "0",
+          "bet": "1"
+        }
+      },
+      {
+        "own_hand": [
+          "4d",
+          "5d"
+        ],
+        "history": [
+          "check",
+          "bet"
+        ],
+        "probabilities": {
+          "fold": "1",
+          "call": "0"
+        }
+      },
+      {
+        "own_hand": [
+          "Jc",
+          "Ad"
+        ],
+        "history": [
+          "check",
+          "bet"
+        ],
+        "probabilities": {
+          "fold": "0",
+          "call": "1"
+        }
+      }
+    ],
+    [
+      {
+        "own_hand": [
+          "9c",
+          "Kd"
+        ],
+        "history": [
+          "bet"
+        ],
+        "probabilities": {
+          "fold": "1/2",
+          "call": "1/2"
+        }
+      },
+      {
+        "own_hand": [
+          "9c",
+          "Kd"
+        ],
+        "history": [
+          "check"
+        ],
+        "probabilities": {
+          "check": "1/2",
+          "bet": "1/2"
+        }
+      }
+    ]
+  ],
+  "certificate": {
+    "value": "1/4",
+    "lower_bound": "1/4",
+    "upper_bound": "1/4",
+    "first_gain": "0",
+    "second_gain": "0",
+    "gap": "0"
+  }
+}
